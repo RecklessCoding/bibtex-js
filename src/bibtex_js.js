@@ -1224,7 +1224,42 @@ function generateList(object, bibtexField) {
                 map[key][0]
             ]); //Count
         }
-    } else {
+    } else if (bibtexField == "bibtextypekey") {
+        $(".bibtexentry span.bibtextypekey").each(function(i, obj) {
+            type = [$(this).text()];            
+            if (type in map) {
+                map[type] += 1;
+            } else {
+                map[type] = 1;
+            }
+        });
+        for (var key in map) {
+            if (key == "INCOLLECTION") {
+                typeText = "Book Chapter";
+                label = "bookChLabel";
+            } else if (key == "BOOK") {
+                typeText = "Book";
+                label = "bookLabel";
+            } else if (key == "INPROCEEDINGS") {
+                typeText = "Proceedings";
+                label = "proceedingsLabel";
+            } else if (key == "ARTICLE") {
+                typeText = "Journal";
+                label = "journalLabel";
+            } else if (key == "PHDTHESIS") {
+                typeText = "PhD Thesis";
+                label = "thesisLabel";
+            }else if (key == "TECHREPORT") {
+                typeText = "Technical Report";
+                label = "techLabel";
+            } else if (key == "MISC") {
+                typeText = "Other";
+                label = "miscLabel";
+            }
+            displayTuples.push([key, key, typeText, map[key],label]);
+            // displayTuples.push([key, key, typeText, map[key]]);
+        }
+    }  else {
         $(".bibtexentry span." + bibtexField).each(function(i, obj) {
             arrayString = [$(this).text()];
             if (object[0].hasAttribute("bibtex_split_by")) {
@@ -1261,7 +1296,12 @@ function generateList(object, bibtexField) {
     for (var i = 0; i < displayTuples.length; i++) {
         var key = displayTuples[i][1];
         var text = displayTuples[i][2];
-        object.append($("<option></option>").attr("value", key).text(text));
+        if (displayTuples[i].length >= 5) { //AT: For select lists with a class label for CCS support.
+            var label = displayTuples[i][4];
+            object.append($("<option></option>").attr("class", label).attr("value", key).text(text));
+        } else{
+            object.append($("<option></option>").attr("value", key).text(text));
+        }
     }
 }
 
