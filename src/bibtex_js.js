@@ -590,7 +590,7 @@ function BibtexDisplay() {
                 continue;
             }
 
-            if (key == "AUTHOR") {
+             if ((key == "AUTHOR") || (key == "EDITOR")) {
                 var format = tpl.find("span:not(a)." + key.toLowerCase());
                 if (format.length)
                     value = this.displayAuthor(value, format);
@@ -600,6 +600,12 @@ function BibtexDisplay() {
                 value = moment(value).format("MMM. YYYY");
             } else if (key == "URL") {
                 value = value.replace(/\\url/g, '');
+                value = this.fixValue(value);
+            } else if (key == "DOI") {
+                value = "http://doi.org/" + value;
+                value = this.fixValue(value);
+            } else if (key == "ARXIVID") {
+                value = "https://arxiv.org/abs/" + value;
                 value = this.fixValue(value);
             } else {
                 value = this.fixValue(value);
