@@ -225,6 +225,10 @@ function BibtexParser() {
             this.entries[this.currentEntry]["BIBTEXTYPE"] = "journal";
         } else if (directive == "@TECHREPORT") {
             this.entries[this.currentEntry]["BIBTEXTYPE"] = "technical report";
+        }  else if (directive == "@PHDTHESIS") {
+            this.entries[this.currentEntry]["BIBTEXTYPE"] = "phd thesis";
+        }  else if (directive == "@TALK") {
+            this.entries[this.currentEntry]["BIBTEXTYPE"] = "talk";
         }
         this.entries[this.currentEntry]["BIBTEXTYPEKEY"] = directive.substr(1);
         this.match(",");
@@ -590,7 +594,7 @@ function BibtexDisplay() {
                 continue;
             }
 
-             if ((key == "AUTHOR") || (key == "EDITOR")) {
+            if ((key == "AUTHOR") || (key == "EDITOR")) {
                 var format = tpl.find("span:not(a)." + key.toLowerCase());
                 if (format.length)
                     value = this.displayAuthor(value, format);
@@ -607,6 +611,10 @@ function BibtexDisplay() {
             } else if (key == "ARXIVID") {
                 value = "https://arxiv.org/abs/" + value;
                 value = this.fixValue(value);
+            } else if (key == "KEYWORDS") {
+                value = this.fixValue(value);
+            } else if (key == "BIBTEXTYPE") {
+                value = this.fixValue(value);     
             } else {
                 value = this.fixValue(value);
             }
@@ -850,7 +858,7 @@ function BibtexDisplay() {
                 if (!entry["WEB"] || entry["WEB"].toUpperCase() != "NO") {
                     var tpl = this.createTemplate(entry, output);
                     // Check if template was created
-                    if (tpl) {
+                    if (tpl != null) {
                         structure.find(".templates").append(tpl);
                         tpl.show();
                         if (tpl.attr("callback")) {
@@ -905,7 +913,6 @@ function BibtexDisplay() {
         // remove old entries
         old.remove();
     }
-
 }
 
 function bibtex_js_draw() {
@@ -1007,11 +1014,20 @@ function BibTeXSearcher() {
             if (arrayStr.length < 2) {
                 entry.find("span:not(.noread)." + arrayStr[0]).each(
                     function() {
+                      if (strings[1]!= "null"){
                         if ($(this).text().search(new RegExp(strings[1], "i")) > -1 &&
                             entry.is(":visible")) {
                             found = true;
                             return false; //Break out of loop
                         }
+                      } else { // AT: Hack to fix "null" value used when there is no bib property.
+                          attrToCheck = strings[0].slice(1);
+                          text = $(this).text();
+                          if (text == "") {
+                            found = true;
+                            return false; //Break out of loop
+                        }
+                      }
                     });
             } else {
                 switch (arrayStr[1]) {
@@ -1073,8 +1089,7 @@ function BibTeXSearcher() {
                 });
         }
     }
-
-    this.searcher = function(input, needToRestart) {
+ this.searcher = function(input, needToRestart) {
         needToRestart = typeof needToRestart !== 'undefined' ? needToRestart : false;
         var string = input;
         if (string.length) {
@@ -1224,6 +1239,26 @@ function generateList(object, bibtexField) {
                 map[key][0]
             ]); //Count
         }
+    } else if (bibtexField == "keywords") {
+        var keywordsArray = $(".bibtexentry span.keywords");
+        keywordsArray.each(function(i, obj) {
+            arrayString = [$(this).text()];
+            arrayString[0] = arrayString[0].toLowerCase();
+            arrayString = arrayString[0].split(/,\s|,/g);
+            for (i = 0; i < arrayString.length; ++i) {
+                if (arrayString[i] in map) {
+                    map[arrayString[i]] += 1;
+                } else if (arrayString[i].charAt(0).toUpperCase() in map) {
+                    map[arrayString[i]] += 1;
+                } else {
+                    arrayString[i] = arrayString[i].charAt(0).toUpperCase() + arrayString[i].slice(1)
+                    map[arrayString[i]] = 1;
+                }
+            }
+        });
+        for (var key in map) {
+            displayTuples.push([key, key, key, map[key]]);
+        }
     } else if (bibtexField == "bibtextypekey") {
         $(".bibtexentry span.bibtextypekey").each(function(i, obj) {
             type = [$(this).text()];            
@@ -1255,11 +1290,34 @@ function generateList(object, bibtexField) {
             } else if (key == "MISC") {
                 typeText = "Other";
                 label = "miscLabel";
+            } else if (key == "TALK") {
+                typeText = "Talk";
+                label = "talkLabel";
             }
             displayTuples.push([key, key, typeText, map[key],label]);
             // displayTuples.push([key, key, typeText, map[key]]);
         }
-    }  else {
+    } else if (bibtexField == "upcoming") {
+        $(".bibtexentry span.upcoming").each(function(i, obj) {
+            type = [$(this).text()];
+            if (type in map) {
+                map[type] += 1;
+            } else {
+                map[type] = 1;
+            }
+        });
+        for (var key in map) {
+            if (key == "yes"){
+                typeText = "Show only upcoming";
+                displayTuples.push([key, key, typeText, map[key]]);
+            } 
+            if (key == ""){
+                key = "null";
+                typeText = "Do not show upcoming";
+                displayTuples.push([key, key, typeText, map[key]]);
+            } 
+        }
+    } else {
         $(".bibtexentry span." + bibtexField).each(function(i, obj) {
             arrayString = [$(this).text()];
             if (object[0].hasAttribute("bibtex_split_by")) {
@@ -1291,7 +1349,11 @@ function generateList(object, bibtexField) {
     displayTuples.sort((a, b) =>
         a[0].localeCompare(b[0],
             object.attr("bibtex_sort_language"),
-            options));
+            options));  
+
+    if (object[0].hasAttribute("reverse_sorting")) {
+        displayTuples = displayTuples.reverse();
+    }
 
     for (var i = 0; i < displayTuples.length; i++) {
         var key = displayTuples[i][1];
@@ -1306,14 +1368,49 @@ function generateList(object, bibtexField) {
 }
 
 var defaultTemplate = "<div class=\"bibtex_template\">" +
-    "<div class=\"if author\" style=\"font-weight: bold;\">\n" +
-    "<span class=\"if year\">\n" +
-    "<span class=\"year\"></span>,\n" +
-    "</span>\n  <span class=\"author\"></span>\n" +
-    "<span class=\"if url\" style=\"margin-left: 20px\">\n" +
-    "<a class=\"url\" style=\"color:black; font-size:10px\">(view online)</a>\n" +
-    "</span>\n</div>\n<div style=\"margin-left: 10px; margin-bottom:5px;\">\n" +
-    "<span class=\"title\"></span>\n</div></div>";
+    "<span class=\"if BIBTEXTYPEKEY==ARTICLE\"><a onclick=\"(new BibTeXSearcher()).searcher(this.innerText || this.textContent, true)\"><span class=\"journalLabel\">Journal</span></a></span>\n"+
+    "<span class=\"if BIBTEXTYPEKEY==INPROCEEDINGS\"><a onclick=\"(new BibTeXSearcher()).searcher(this.innerText || this.textContent, true)\"><span class=\"confLabel\">Proceedings</span></a></span>\n"+
+    "<span class=\"if BIBTEXTYPEKEY==INCOLLECTION\"><a onclick=\"(new BibTeXSearcher()).searcher(this.innerText || this.textContent, true)\"><span class=\"bookChLabel\">Book Chapter</span></a></span>\n"+
+    "<span class=\"if BIBTEXTYPEKEY==TECHREPORT\"><a onclick=\"(new BibTeXSearcher()).searcher(this.innerText || this.textContent, true)\"><span class=\"techLabel\">Tech Report</span></a></span>\n"+
+    "<span class=\"if BIBTEXTYPEKEY==PHDTHESIS\"><a onclick=\"(new BibTeXSearcher()).searcher(this.innerText || this.textContent, true)\"><span class=\"thesisLabel\">PhD Thesis</span></a></span>\n"+
+    "<span class=\"author\" conjunction=\", and\"><span class=\"von\"></span> <span class=\"last\"></span><span class=\"junior\">, </span> <span class=\"first_initial\"></span></span>\n"+
+    "<span> </span>\n"+
+    "<b><span class=\"title\"> </span></b>.\n"+
+    "<span class=\"if journal\"><em><span class=\"journal\"></span></em>,</span>\n"+
+    "<span class=\"if editor\"> In <span class=\"editor\"><span class=\"von\"></span> <span class=\"last\"></span><span class=\"junior\">, </span><span class=\"first_initial\"> </span></span> (eds),</span>\n"+
+    "<span class=\"if booktitle\"><em><span class=\"booktitle\"></span></em>,</span>\n"+
+    "<span class=\"if publisher\"><em><span class=\"publisher\"></span></em>,</span>\n"+
+    "<span class=\"if institution\"><span class=\"institution\"></span>,</span>\n"+
+    "<span class=\"if address\"><span class=\"address\"></span>,</span>\n"+
+    "<span class=\"if volume\"><span class=\"volume\"></span>,</span>\n"+
+    "<span class=\"if journal number\">(<span class=\"number\"></span>),</span>\n"+
+    "<span class=\"if pages\"> pages <span class=\"pages\"></span>,</span>\n"+
+    "<span class=\"if month\"><span class=\"month\"></span>,</span>\n"+
+    "<span class=\"if year\"><span class=\"year\"></span>.</span>\n"+
+    "<span class=\"if note\"><span class=\"note\"></span>.</span>\n"+
+    "<span class =\"if abstract\">"+
+        "<a class=\"bibtexVar\" role=\"button\" data-toggle=\"collapse\" href=\"#bib+BIBTEXKEY+Abstract\" aria-expanded=\"false\" aria-controls=\"bib+BIBTEXKEY+\" extra=\"BIBTEXKEY\"> [Abstract]</a>"+
+    "</span>\n"+
+    "<a class=\"bibtexVar\" role=\"button\" data-toggle=\"collapse\" href=\"#bib+BIBTEXKEY+\" aria-expanded=\"false\" aria-controls=\"bib+BIBTEXKEY+\" extra=\"BIBTEXKEY\">[bib]</a>\n"+
+    "<span class=\"if doi\"><a class=\"doi\">[doi]</a></span>\n"+
+    "<span class=\"if url\"><a class=\"url\">[View Online]</a></span>\n"+
+    "<span class=\"if arxivId\"><a class=\"arxivid\">[arXiv]</a></span>\n"+
+    
+    "<div class=\"bibtexVar collapse\" id=\"bib+BIBTEXKEY+\" extra=\"BIBTEXKEY\">\n"+
+        "<div class=\"card\">\n"+
+          "<div class=\"card card-body\">\n"+
+            "<pre><span class=\"bibtexraw noread\"></span></pre>"+
+          "</div>\n"+
+        "</div>\n"+
+    "</div>\n"+
+    "<div class=\"bibtexVar collapse abstract-box\" id=\"bib+BIBTEXKEY+Abstract\" extra=\"BIBTEXKEY\">\n"+
+      "<div class=\"card\">\n"+
+            "<div class=\"card card-body\">\n"+
+                "<span class=\"abstract\"></span>\n"+
+            "</div>\n"+
+        "</div>\n"+
+      "</div>;\n"+
+    "</div>";
 
 // check whether or not jquery is present
 if (!window.jQuery || !window.moment) {
